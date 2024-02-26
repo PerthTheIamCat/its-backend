@@ -1,5 +1,5 @@
 from flask import Flask,jsonify,request
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 from pymongo.mongo_client import MongoClient
 import certifi
 
@@ -15,14 +15,8 @@ except Exception as e:
 
 
 app = Flask(__name__)
-CORS(app)
-products=[
-{"id":0,"name":"Notebook Acer Swift","price":45900,"img":"https://img.advice.co.th/images_nas/pic_product4/A0147295/A0147295_s.jpg"},
-{"id":1,"name":"Notebook Asus Vivo","price":19900,"img":"https://img.advice.co.th/images_nas/pic_product4/A0146010/A0146010_s.jpg"},
-{"id":2,"name":"Notebook Lenovo Ideapad","price":32900,"img":"https://img.advice.co.th/images_nas/pic_product4/A0149009/A0149009_s.jpg"},
-{"id":3,"name":"Notebook MSI Prestige","price":54900,"img":"https://img.advice.co.th/images_nas/pic_product4/A0149954/A0149954_s.jpg"},
-{"id":4,"name":"Notebook DELL XPS","price":99900,"img":"https://img.advice.co.th/images_nas/pic_product4/A0146335/A0146335_s.jpg"},
-{"id":5,"name":"Notebook HP Envy","price":46900,"img":"https://img.advice.co.th/images_nas/pic_product4/A0145712/A0145712_s.jpg"}]
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
 
 @app.route("/")
 def hello_world():
@@ -32,33 +26,56 @@ def hello_world():
 def get_all_products():
     try:
         db = client["Product"]
-        collection = db["product_info"]
+        collection = db["Product_info"]
         all_product = list(collection.find())
-        return products,200
+        return jsonify(all_product),200
     except Exception as e:
         print(e)
-
 
 @app.route("/product",methods=["POST"])
 def add_product():
     try:
         db = client["Product"]
-        collection = db["product_info"]
+        collection = db["Product_info"]
         data = request.get_json()
-        new_product={
-            "_id":data["_id"],
-            "name": data["name"],
-            "price": data["price"],
-            "img": data["img"]
-        }
-        all_product = list(collection.find())
-        if(next((s for s in all_product if s["_id"] == data["_id"]), None)):
-            return jsonify( {"error":"Cannot create new product"}),500
-        else:
-            collection.insert_one(new_product)
-            return jsonify(new_product),200
+        if(collection.find_one({"_id" : data.get("_id")})):
+            return jsonify({"error":"Cannot create new product"}),404
+        collection.insert_one(data)
+        return jsonify(data),200
     except Exception as e:
             print(e)
+
+@app.route("/product/<int:pro_id>", methods=["PUT"])
+def update_product(pro_id):
+    try:
+        db = client["Product"]
+        collection = db["Product_info"]
+        data = request.get_json()
+        if(collection.find_one({"_id" : pro_id})):
+            print("Found")
+            collection.update_one({"_id":pro_id}, {"$set": data})
+            return jsonify(data),200
+        else:
+            return jsonify({"error":"Product not found"}),404
+        
+    except Exception as e:
+        print(e)
+
+
+@app.route("/product/<int:pro_id>", methods=["DELETE"])
+def delete_product(pro_id):
+    try:
+        db = client["Product"]
+        collection = db["Product_info"]
+        if(collection.find_one({"_id" : pro_id})):
+            collection.delete_one({"_id" : pro_id})
+            return jsonify({"message":"Product deleted successfully"}),200
+        else:
+            return jsonify({"error":"Product not found"}),404
+        
+    except Exception as e:
+        print(e)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0",port=3000,debug=True)
